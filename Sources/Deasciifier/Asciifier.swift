@@ -8,8 +8,8 @@
 import Foundation
 import Corpus
 
-protocol Deasciifier {
+protocol Asciifier {
     
-    func deasciify(sentence: Sentence)->Sentence
-
+    func asciify(sentence: Sentence)->Sentence
+    
 }
