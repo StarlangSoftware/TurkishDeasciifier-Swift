@@ -16,6 +16,7 @@ public class NGramDeasciifier : SimpleDeasciifier{
     private var nGram : NGram<String>
     private var rootNGram: Bool = true
     private var threshold: Double = 0.0
+    private var asciifiedSame: [String : String] = [:]
     
     /**
      * A constructor of {@link NGramDeasciifier} class which takes an {@link FsmMorphologicalAnalyzer} and an {@link NGram}
@@ -30,6 +31,7 @@ public class NGramDeasciifier : SimpleDeasciifier{
         self.nGram = nGram
         self.rootNGram = rootNGram
         super.init(fsm: fsm)
+        self.loadAsciifiedSameList()
     }
     
     /**
@@ -74,50 +76,84 @@ public class NGramDeasciifier : SimpleDeasciifier{
      - Returns: Sentence result as output.
      */
     public override func deasciify(sentence: Sentence) -> Sentence {
-        let result : Sentence = Sentence()
-        var root : Word? = checkAnalysisAndSetRoot(sentence: sentence, index: 0)
+        var s : Sentence = sentence
+        var result : Sentence = Sentence()
+        var root : Word? = checkAnalysisAndSetRoot(sentence: s, index: 0)
         var previousRoot : Word? = nil
-        var nextRoot = checkAnalysisAndSetRoot(sentence: sentence, index: 1)
+        var nextRoot = checkAnalysisAndSetRoot(sentence: s, index: 1)
         var previousProbability, nextProbability: Double
-        for i in 0..<sentence.wordCount() {
-            let word = sentence.getWord(index: i)
-            if root == nil{
-                let candidates = candidateList(word: word)
-                var bestCandidate : String = word.getName()
-                var bestRoot : Word = word
-                var bestProbability : Double = threshold
-                for candidate in candidates {
-                    let fsmParses = fsm.morphologicalAnalysis(surfaceForm: candidate)
-                    if rootNGram {
-                        root = fsmParses.getParseWithLongestRootWord().getWord();
-                    } else {
-                        root = Word(name: candidate)
-                    }
-                    if previousRoot != nil {
-                        previousProbability = getProbability(word1: previousRoot!.getName(), word2: root!.getName())
-                    } else {
-                        previousProbability = 0.0
-                    }
-                    if nextRoot != nil {
-                        nextProbability = getProbability(word1: root!.getName(), word2: nextRoot!.getName())
-                    } else {
-                        nextProbability = 0.0
-                    }
-                    if max(previousProbability, nextProbability) > bestProbability {
-                        bestCandidate = candidate
-                        bestRoot = root!
-                        bestProbability = max(previousProbability, nextProbability)
-                    }
+        var isAsciifiedSame: Bool
+        var candidates: [String] = []
+        for repeated in 0..<2{
+            for i in 0..<s.wordCount() {
+                candidates = []
+                isAsciifiedSame = false
+                let word = s.getWord(index: i)
+                if asciifiedSame[word.getName()] != nil{
+                    candidates.append(word.getName())
+                    candidates.append(asciifiedSame[word.getName()]!)
+                    isAsciifiedSame = true
                 }
-                root = bestRoot
-                result.addWord(word: Word(name: bestCandidate))
-            } else {
-                result.addWord(word: word)
+                if root == nil || isAsciifiedSame{
+                    if !isAsciifiedSame{
+                        candidates = candidateList(word: word)
+                    }
+                    var bestCandidate : String = word.getName()
+                    var bestRoot : Word = word
+                    var bestProbability : Double = threshold
+                    for candidate in candidates {
+                        let fsmParses = fsm.morphologicalAnalysis(surfaceForm: candidate)
+                        if rootNGram && !isAsciifiedSame{
+                            root = fsmParses.getParseWithLongestRootWord().getWord();
+                        } else {
+                            root = Word(name: candidate)
+                        }
+                        if previousRoot != nil {
+                            previousProbability = getProbability(word1: previousRoot!.getName(), word2: root!.getName())
+                        } else {
+                            previousProbability = 0.0
+                        }
+                        if nextRoot != nil {
+                            nextProbability = getProbability(word1: root!.getName(), word2: nextRoot!.getName())
+                        } else {
+                            nextProbability = 0.0
+                        }
+                        if max(previousProbability, nextProbability) > bestProbability {
+                            bestCandidate = candidate
+                            bestRoot = root!
+                            bestProbability = max(previousProbability, nextProbability)
+                        }
+                    }
+                    root = bestRoot
+                    result.addWord(word: Word(name: bestCandidate))
+                } else {
+                    result.addWord(word: word)
+                }
+                previousRoot = root
+                root = nextRoot!
+                nextRoot = checkAnalysisAndSetRoot(sentence: s, index: i + 2)
             }
-            previousRoot = root
-            root = nextRoot!
-            nextRoot = checkAnalysisAndSetRoot(sentence: sentence, index: i + 2)
+            s = result
+            if repeated < 1{
+                result = Sentence()
+                previousRoot = nil
+                root = checkAnalysisAndSetRoot(sentence: s, index: 0)
+                nextRoot = checkAnalysisAndSetRoot(sentence: s, index: 1)
+            }
         }
         return result
+    }
+    
+    private func loadAsciifiedSameList(){
+        let myUrl = Bundle.module.url(forResource: "asciified-same", withExtension: "txt")
+        do{
+            let fileContent = try String(contentsOf: myUrl!, encoding: .utf8)
+            let lines : [String] = fileContent.split(whereSeparator: \.isNewline).map(String.init)
+            for line in lines{
+                let wordList : [String] = line.split(separator: " ").map(String.init)
+                self.asciifiedSame[wordList[0]] = wordList[1]
+            }
+        }catch{
+        }
     }
 }
