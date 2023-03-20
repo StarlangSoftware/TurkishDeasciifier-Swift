@@ -117,7 +117,7 @@ public class NGramDeasciifier : SimpleDeasciifier{
                     } else {
                         nextProbability = 0.0
                     }
-                    if max(previousProbability, nextProbability) > bestProbability {
+                    if max(previousProbability, nextProbability) > bestProbability || candidates.count == 1{
                         bestCandidate = candidate
                         bestRoot = root!
                         bestProbability = max(previousProbability, nextProbability)
